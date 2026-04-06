@@ -26,24 +26,25 @@ export default function WalletConnect() {
     );
   }
 
+  const handleConnect = () => {
+    // Prefer injected wallet (MetaMask/Rabby), fallback to first available
+    const injected = connectors.find((c) => c.id === "injected");
+    const connector = injected ?? connectors[0];
+    if (connector) connect({ connector });
+  };
+
   return (
-    <div className="flex gap-2 flex-wrap">
-      {connectors.map((connector) => (
-        <Button
-          key={connector.uid}
-          onClick={() => connect({ connector })}
-          disabled={isPending}
-          size="sm"
-          className="bg-gradient-to-r from-primary to-secondary text-secondary-foreground font-bold glow-shadow hover:glow-shadow-intense transition-shadow"
-        >
-          {isPending ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Wallet className="w-4 h-4 mr-2" />
-          )}
-          {connector.name}
-        </Button>
-      ))}
-    </div>
+    <Button
+      onClick={handleConnect}
+      disabled={isPending}
+      className="bg-gradient-to-r from-primary to-secondary text-secondary-foreground font-bold glow-shadow hover:glow-shadow-intense transition-shadow"
+    >
+      {isPending ? (
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+      ) : (
+        <Wallet className="w-4 h-4 mr-2" />
+      )}
+      Connect Wallet
+    </Button>
   );
 }

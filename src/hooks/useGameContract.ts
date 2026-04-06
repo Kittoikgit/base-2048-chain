@@ -13,13 +13,13 @@ export function useLeaderboard() {
   });
 
   const entries = data
-    ? (data as readonly { player: string; score: bigint }[])
+    ? Array.from(data as readonly { player: string; score: bigint }[])
         .map((e, i) => ({
           rank: i + 1,
           address: e.player,
           score: Number(e.score),
         }))
-        .filter((e) => e.score > 0)
+        .filter((e) => e.score > 0 && e.address !== "0x0000000000000000000000000000000000000000")
     : [];
 
   return { entries, refetch, isLoading };
