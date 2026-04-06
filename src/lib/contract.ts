@@ -55,3 +55,4 @@ export function decodeBoardFromUint256(boardUint: bigint): number[][] {
   }
   return board;
 }
+export const CDP_PAYMASTER_URL = "https://api.developer.coinbase.com/rpc/v1/base/GeDbXNmpt0XTRT2eUchUx9TW54zx1k1z";
