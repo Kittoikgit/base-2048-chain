@@ -1,14 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { createWalletClient, http, parseAbi } from "viem";
+import { createWalletClient, http, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
-import { GAME_CONTRACT_ADDRESS, GAME_ABI, DIRECTION_MAP } from "@/lib/contract";
+import { createBundlerClient, createPaymasterClient } from "viem/account-abstraction";
+import { toSimpleSmartAccount } from "permissionless/accounts";
+import { createSmartAccountClient } from "permissionless";
+import { GAME_CONTRACT_ADDRESS, GAME_ABI, DIRECTION_MAP, CDP_PAYMASTER_URL } from "@/lib/contract";
 import type { Direction } from "@/lib/game2048";
 import { toast } from "sonner";
 
 const STORAGE_KEY = "session_key_2048";
-const SESSION_DURATION = 3600; // 1 година
+const SESSION_DURATION = 3600;
 
 interface SessionData {
   privateKey: `0x${string}`;
@@ -23,7 +26,6 @@ export function useSessionKey() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [isActivating, setIsActivating] = useState(false);
 
-  // Завантажити збережений ключ
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -36,22 +38,22 @@ export function useSessionKey() {
     }
   }, []);
 
-  // Активація (одноразовий підпис MetaMask)
   const activate = useCallback(async () => {
     if (!walletClient || !address || !publicClient) return;
     setIsActivating(true);
     try {
-      // Генеруємо тимчасовий ключ
       const randomBytes = crypto.getRandomValues(new Uint8Array(32));
       const privateKey = `0x${Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')}` as `0x${string}`;
       const tempAccount = privateKeyToAccount(privateKey);
 
-      // Реєструємо на контракті (єдиний попап MetaMask)
+      // Register session key on contract (user signs once)
       const hash = await walletClient.writeContract({
         address: GAME_CONTRACT_ADDRESS,
         abi: GAME_ABI,
         functionName: "addSessionKey",
         args: [tempAccount.address, BigInt(SESSION_DURATION)],
+        chain: base,
+        account: address,
       });
 
       await publicClient.waitForTransactionReceipt({ hash });
@@ -63,16 +65,16 @@ export function useSessionKey() {
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       setSession(data);
-      toast.success("⚡ Автопідпис активовано на 1 годину!");
+      toast.success("⚡ Auto-sign activated for 1 hour!");
     } catch (e) {
       console.error("Session key activation failed:", e);
-      toast.error("Не вдалося активувати автопідпис");
+      toast.error("Failed to activate auto-sign");
     } finally {
       setIsActivating(false);
     }
   }, [walletClient, address, publicClient]);
 
-  // Хід через session key (БЕЗ попапу)
+  // Gasless move via session key + Coinbase Paymaster
   const moveWithSession = useCallback(
     async (dir: Direction) => {
       if (!session || !address || !publicClient) {
@@ -80,29 +82,48 @@ export function useSessionKey() {
       }
 
       const tempAccount = privateKeyToAccount(session.privateKey);
-      const tempClient = createWalletClient({
-        account: tempAccount,
+      
+      // Create smart account from session key
+      const smartAccount = await toSimpleSmartAccount({
+        client: publicClient,
+        owner: tempAccount,
+      });
+
+      const paymasterClient = createPaymasterClient({
+        transport: http(CDP_PAYMASTER_URL),
+      });
+
+      const bundlerClient = createBundlerClient({
+        client: publicClient,
+        transport: http(CDP_PAYMASTER_URL),
+        paymaster: paymasterClient,
+      });
+
+      const smartAccountClient = createSmartAccountClient({
+        account: smartAccount,
         chain: base,
-        transport: http(),
+        bundlerTransport: http(CDP_PAYMASTER_URL),
+        paymaster: paymasterClient,
       });
 
-      const hash = await tempClient.writeContract({
-        address: GAME_CONTRACT_ADDRESS,
-        abi: GAME_ABI,
-        functionName: "moveOnBehalf",
-        args: [address, DIRECTION_MAP[dir]],
+      const txHash = await smartAccountClient.sendTransaction({
+        to: GAME_CONTRACT_ADDRESS,
+        data: encodeFunctionData({
+          abi: GAME_ABI,
+          functionName: "moveOnBehalf",
+          args: [address, DIRECTION_MAP[dir]],
+        }),
       });
 
-      await publicClient.waitForTransactionReceipt({ hash });
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
     },
     [session, address, publicClient]
   );
 
-  // Деактивація
   const deactivate = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setSession(null);
-    toast.info("Автопідпис вимкнено");
+    toast.info("Auto-sign disabled");
   }, []);
 
   const isActive = !!session && session.expiresAt > Date.now() / 1000;
