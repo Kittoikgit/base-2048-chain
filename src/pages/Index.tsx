@@ -8,24 +8,40 @@ import Leaderboard from "@/components/Leaderboard";
 import RewardsClaim from "@/components/RewardsClaim";
 import { Loader2 } from "lucide-react";
 import { useSessionKey } from "@/hooks/useSessionKey";
+import { toast } from "sonner";
+
 export default function Index() {
   const { isConnected } = useAccount();
+
   const { board: onChainBoard, score: onChainScore, isActive, refetch: refetchGame } = useGameState();
   const {
-    startGame, restartGame, makeMove: contractMove, endGame, claimReward,
-    isPending, isConfirming, txError
+    startGame,
+    restartGame,
+    makeMove: contractMove,
+    endGame,
+    claimReward,
+    isPending,
+    isConfirming,
+    txError,
   } = useGameActions();
+
   const { entries: leaderboardEntries, refetch: refetchLeaderboard, isLoading: lbLoading } = useLeaderboard();
   const playerHighScore = usePlayerHighScore();
   const poolBalance = useRewardPoolBalance();
+
+  // Session key hook
   const { isActive: hasSessionKey, isActivating, activate: activateSession, moveWithSession, deactivate: deactivateSession } = useSessionKey();
+
   // Local fallback game for non-connected users
-  const [localGame, setLocalGame] = useState<GameState>(initGame);
+  const [localGame, setLocalGame] = useState<GameState>(initGame());
+
   const [bestScore, setBestScore] = useState(0);
-  // ===== OPTIMISTIC STATE =====
+
+  // Optimistic state for connected users
   const [optimisticGame, setOptimisticGame] = useState<GameState | null>(null);
   const [pendingMoves, setPendingMoves] = useState(0);
-  // Refetch on-chain state after tx confirms
+
+  // Refetch on-chain state after transaction
   useEffect(() => {
     if (!isPending && !isConfirming && isConnected) {
       refetchGame();
@@ -33,7 +49,7 @@ export default function Index() {
     }
   }, [isPending, isConfirming, isConnected, refetchGame, refetchLeaderboard]);
 
-  // When on-chain state updates — sync optimistic state
+  // Sync optimistic state when on-chain updates
   useEffect(() => {
     if (onChainBoard && !isPending && !isConfirming) {
       setOptimisticGame(null);
@@ -41,7 +57,7 @@ export default function Index() {
     }
   }, [onChainBoard, onChainScore, isPending, isConfirming]);
 
-  // Rollback on tx error
+  // Rollback on error
   useEffect(() => {
     if (txError) {
       setOptimisticGame(null);
@@ -50,37 +66,73 @@ export default function Index() {
     }
   }, [txError, refetchGame]);
 
+  // Main move handler – works with AND without session key
   const handleMove = useCallback(
-  async (dir: Direction) => {
-    if (isConnected && isActive) {
-      // Optimistic UI (якщо вже реалізовано)
-      if (hasSessionKey) {
-        // Без попапу MetaMask!
-        try {
-          await moveWithSession(dir);
-        } catch (e) {
-          console.error("Session move failed:", e);
-          toast.error("Хід не вдався");
+    async (dir: Direction) => {
+      if (isConnected && isActive) {
+        const currentBoard = optimisticGame?.board ?? onChainBoard;
+        const currentScore = optimisticGame?.score ?? onChainScore;
+
+        if (!currentBoard) return;
+
+        const currentState: GameState = {
+          board: currentBoard,
+          score: currentScore,
+          gameOver: false,
+          won: false,
+        };
+
+        const nextState = move(currentState, dir);
+
+        // Only proceed if the board actually changed
+        if (JSON.stringify(nextState.board) !== JSON.stringify(currentState.board)) {
+          // Optimistic update
+          setOptimisticGame(nextState);
+          setPendingMoves((prev) => prev + 1);
+
+          try {
+            if (hasSessionKey) {
+              // No wallet popup – session key move
+              await moveWithSession(dir);
+            } else {
+              // Normal on-chain move (shows MetaMask)
+              contractMove(dir);
+            }
+          } catch (error) {
+            console.error("Move failed:", error);
+            toast.error("Move failed");
+            // Rollback optimistic state
+            setOptimisticGame(null);
+            setPendingMoves(0);
+          }
         }
       } else {
-        contractMove(dir);
+        // Offline / local game
+        setLocalGame((prev) => {
+          if (prev.gameOver) return prev;
+          const next = move(prev, dir);
+          if (next.score > bestScore) setBestScore(next.score);
+          return next;
+        });
       }
-    } else {
-      setLocalGame((prev) => {
-        if (prev.gameOver) return prev;
-        const next = move(prev, dir);
-        if (next.score > bestScore) setBestScore(next.score);
-        return next;
-      });
-    }
-  },
-  [isConnected, isActive, hasSessionKey, contractMove, moveWithSession, bestScore]
-);
-
+    },
+    [
+      isConnected,
+      isActive,
+      hasSessionKey,
+      optimisticGame,
+      onChainBoard,
+      onChainScore,
+      contractMove,
+      moveWithSession,
+      bestScore,
+    ]
+  );
 
   const handleRestart = () => {
     setOptimisticGame(null);
     setPendingMoves(0);
+
     if (isConnected) {
       if (isActive) {
         restartGame();
@@ -92,13 +144,15 @@ export default function Index() {
     }
   };
 
-  // Display: optimistic > on-chain > local
+  // Display logic: optimistic → on-chain → local
   const displayBoard = isConnected
     ? (optimisticGame?.board ?? onChainBoard ?? localGame.board)
     : localGame.board;
+
   const displayScore = isConnected
-    ? (optimisticGame?.score ?? onChainScore)
+    ? (optimisticGame?.score ?? onChainScore ?? 0)
     : localGame.score;
+
   const txBusy = isPending || isConfirming;
 
   return (
@@ -112,42 +166,49 @@ export default function Index() {
         won={displayBoard?.flat().some((v) => v >= 2048)}
       />
 
-      <GameBoard board={displayBoard} onMove={handleMove} disabled={txBusy && pendingMoves === 0} />
+      <GameBoard
+        board={displayBoard}
+        onMove={handleMove}
+        disabled={txBusy && pendingMoves === 0}
+      />
 
-      {/* Pending indicator */}
+      {/* Pending moves indicator */}
       {pendingMoves > 0 && (
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground animate-pulse">
           <Loader2 className="w-4 h-4 animate-spin" />
           {pendingMoves} move{pendingMoves > 1 ? "s" : ""} confirming on-chain...
         </div>
-      )}Ф
+      )}
 
+      {/* Transaction status */}
       {txBusy && pendingMoves === 0 && (
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
           {isPending ? "Confirm in wallet..." : "Waiting for on-chain confirmation..."}
         </div>
       )}
+
+      {/* Session Key Button */}
       {isConnected && isActive && (
-  <div className="flex justify-center">
-    {!hasSessionKey ? (
-      <button
-        onClick={activateSession}
-        disabled={isActivating}
-        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
-      >
-        {isActivating ? "Активація..." : "⚡ Увімкнути автопідпис (1 год)"}
-      </button>
-    ) : (
-      <button
-        onClick={deactivateSession}
-        className="px-4 py-2 rounded-lg bg-muted text-muted-foreground text-sm font-medium hover:opacity-90"
-      >
-        🔒 Вимкнути автопідпис
-      </button>
-    )}
-  </div>
-)}
+        <div className="flex justify-center">
+          {!hasSessionKey ? (
+            <button
+              onClick={activateSession}
+              disabled={isActivating}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+            >
+              {isActivating ? "Activating..." : "⚡ Enable Auto-Sign (1 hour)"}
+            </button>
+          ) : (
+            <button
+              onClick={deactivateSession}
+              className="px-4 py-2 rounded-lg bg-muted text-muted-foreground text-sm font-medium hover:opacity-90 transition-colors"
+            >
+              🔒 Disable Auto-Sign
+            </button>
+          )}
+        </div>
+      )}
 
       <p className="text-center text-xs text-muted-foreground">
         {isConnected
@@ -158,6 +219,7 @@ export default function Index() {
       </p>
 
       <Leaderboard entries={leaderboardEntries} isLoading={lbLoading} />
+
       <RewardsClaim
         onClaim={claimReward}
         onEnd={endGame}
