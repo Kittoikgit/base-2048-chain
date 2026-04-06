@@ -6,7 +6,7 @@
   },
   "frame": {
     "version": "1",
-    "name": "2048 On-Chain",
+    "name": "kittoik-2048-app",
     "subtitle": "Play 2048 on Base blockchain",
     "description": "Play the classic 2048 puzzle game fully on-chain on Base. Every move is a transaction. Compete on the leaderboard and earn KITTOIK token rewards.",
     "iconUrl": "https://base-2048-chain.vercel.app/icon.png",
