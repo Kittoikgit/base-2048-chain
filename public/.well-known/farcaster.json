@@ -1,0 +1,16 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "frame": {
+    "version": "1",
+    "name": "2048 On-Chain",
+    "iconUrl": "https://kittoik2048.lovable.app/icon.png",
+    "homeUrl": "https://kittoik2048.lovable.app",
+    "splashImageUrl": "https://kittoik2048.lovable.app/splash.png",
+    "splashBackgroundColor": "#0a0a0f",
+    "webhookUrl": ""
+  }
+}
