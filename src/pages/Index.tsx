@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { initGame, move, type Direction, type GameState } from "@/lib/game2048";
-import { useGameState, useGameActions, useLeaderboard } from "@/hooks/useGameContract";
+import { useGameState, useGameActions, useLeaderboard, usePlayerHighScore, useRewardPoolBalance } from "@/hooks/useGameContract";
 import GameBoard from "@/components/GameBoard";
 import GameHeader from "@/components/GameHeader";
 import Leaderboard from "@/components/Leaderboard";

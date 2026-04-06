@@ -7,9 +7,16 @@ interface RewardsClaimProps {
   isActive: boolean;
   isConnected: boolean;
   isBusy: boolean;
+  hasPlayed: boolean;
+  poolBalance: number;
 }
 
-export default function RewardsClaim({ onClaim, onEndGame, isActive, isConnected, isBusy }: RewardsClaimProps) {
+export default function RewardsClaim({ onClaim, onEndGame, isActive, isConnected, isBusy, hasPlayed, poolBalance }: RewardsClaimProps) {
+  // Hide entire section if no rewards in the contract
+  if (poolBalance <= 0) return null;
+
+  const canClaim = isConnected && hasPlayed;
+
   return (
     <div className="glass-card rounded-lg p-4 sm:p-5 glow-shadow">
       <h2 className="text-lg font-bold gradient-text mb-3 flex items-center gap-2">
@@ -18,15 +25,11 @@ export default function RewardsClaim({ onClaim, onEndGame, isActive, isConnected
       <div className="space-y-3">
         <div className="flex justify-between items-center text-sm">
           <span className="text-muted-foreground">Prize Pool</span>
-          <span className="font-bold text-foreground">2.5 ETH</span>
-        </div>
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground">Season Ends</span>
-          <span className="font-bold text-foreground">12d 4h</span>
+          <span className="font-bold text-foreground">{(poolBalance / 1e18).toLocaleString()} KITTOIK</span>
         </div>
         <div className="flex justify-between items-center text-sm">
           <span className="text-muted-foreground">Your Rank</span>
-          <span className="font-bold text-primary">#—</span>
+          <span className="font-bold text-primary">{hasPlayed ? "#—" : "N/A"}</span>
         </div>
 
         {isConnected && isActive && (
@@ -44,13 +47,17 @@ export default function RewardsClaim({ onClaim, onEndGame, isActive, isConnected
         <Button
           onClick={onClaim}
           className="w-full bg-gradient-to-r from-primary to-secondary text-secondary-foreground font-bold glow-shadow hover:glow-shadow-intense transition-shadow mt-2"
-          disabled={!isConnected || isBusy}
+          disabled={!canClaim || isBusy}
         >
           {isBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
           Claim Rewards <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
         <p className="text-[10px] text-muted-foreground text-center">
-          {isConnected ? "Finish a game to be eligible for rewards" : "Connect wallet & finish a game to be eligible"}
+          {!isConnected
+            ? "Connect wallet & finish a game to be eligible"
+            : !hasPlayed
+            ? "Play and finish a game first to claim rewards"
+            : "Claim your KITTOIK rewards based on your rank"}
         </p>
       </div>
     </div>
