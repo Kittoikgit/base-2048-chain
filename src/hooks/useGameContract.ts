@@ -1,4 +1,5 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import { base } from "wagmi/chains";
 import { GAME_CONTRACT_ADDRESS, GAME_ABI, DIRECTION_MAP, decodeBoardFromUint256 } from "@/lib/contract";
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -43,6 +44,7 @@ export function useGameState() {
 }
 
 export function useGameActions() {
+  const { address } = useAccount();
   const { writeContract, data: txHash, isPending, reset } = useWriteContract();
   const [action, setAction] = useState<string>("");
 
@@ -56,54 +58,45 @@ export function useGameActions() {
     }
   }, [isSuccess, action, reset]);
 
+  const baseArgs = {
+    address: GAME_CONTRACT_ADDRESS,
+    abi: GAME_ABI,
+    chain: base,
+    account: address,
+  } as const;
+
   const startGame = useCallback(() => {
+    if (!address) return;
     setAction("Start Game");
-    writeContract({
-      address: GAME_CONTRACT_ADDRESS,
-      abi: GAME_ABI,
-      functionName: "startGame",
-    });
-  }, [writeContract]);
+    writeContract({ ...baseArgs, account: address, functionName: "startGame" });
+  }, [writeContract, address]);
 
   const restartGame = useCallback(() => {
+    if (!address) return;
     setAction("Restart Game");
-    writeContract({
-      address: GAME_CONTRACT_ADDRESS,
-      abi: GAME_ABI,
-      functionName: "restartGame",
-    });
-  }, [writeContract]);
+    writeContract({ ...baseArgs, account: address, functionName: "restartGame" });
+  }, [writeContract, address]);
 
   const makeMove = useCallback(
     (dir: Direction) => {
+      if (!address) return;
       setAction("Move");
-      writeContract({
-        address: GAME_CONTRACT_ADDRESS,
-        abi: GAME_ABI,
-        functionName: "makeMove",
-        args: [DIRECTION_MAP[dir]],
-      });
+      writeContract({ ...baseArgs, account: address, functionName: "makeMove", args: [DIRECTION_MAP[dir]] });
     },
-    [writeContract]
+    [writeContract, address]
   );
 
   const endGame = useCallback(() => {
+    if (!address) return;
     setAction("End Game");
-    writeContract({
-      address: GAME_CONTRACT_ADDRESS,
-      abi: GAME_ABI,
-      functionName: "endGame",
-    });
-  }, [writeContract]);
+    writeContract({ ...baseArgs, account: address, functionName: "endGame" });
+  }, [writeContract, address]);
 
   const claimReward = useCallback(() => {
+    if (!address) return;
     setAction("Claim Reward");
-    writeContract({
-      address: GAME_CONTRACT_ADDRESS,
-      abi: GAME_ABI,
-      functionName: "claimReward",
-    });
-  }, [writeContract]);
+    writeContract({ ...baseArgs, account: address, functionName: "claimReward" });
+  }, [writeContract, address]);
 
   return {
     startGame,
