@@ -32,3 +32,26 @@ export const GAME_ABI = [
   { anonymous: false, inputs: [{ indexed: true, internalType: "address", name: "player", type: "address" }, { indexed: true, internalType: "address", name: "key", type: "address" }, { indexed: false, internalType: "uint256", name: "expiry", type: "uint256" }], name: "SessionKeyAdded", type: "event" },
   { anonymous: false, inputs: [{ indexed: true, internalType: "address", name: "player", type: "address" }, { indexed: true, internalType: "address", name: "key", type: "address" }], name: "SessionKeyRevoked", type: "event" },
 ] as const satisfies Abi;
+export const ERC20_BALANCE_ABI = [
+  { inputs: [{ internalType: "address", name: "account", type: "address" }], name: "balanceOf", outputs: [{ internalType: "uint256", name: "", type: "uint256" }], stateMutability: "view", type: "function" },
+] as const satisfies Abi;
+
+// Direction mapping: contract uses uint8 (0=up, 1=down, 2=left, 3=right)
+export const DIRECTION_MAP: Record<string, number> = {
+  up: 0,
+  down: 1,
+  left: 2,
+  right: 3,
+};
+
+// Decode a uint256 board into a 4x4 grid. Each cell is 4 bits (nibble) representing power of 2.
+export function decodeBoardFromUint256(boardUint: bigint): number[][] {
+  const board: number[][] = Array.from({ length: 4 }, () => Array(4).fill(0));
+  for (let i = 0; i < 16; i++) {
+    const nibble = Number((boardUint >> BigInt(i * 4)) & 0xFn);
+    const row = Math.floor(i / 4);
+    const col = i % 4;
+    board[row][col] = nibble === 0 ? 0 : Math.pow(2, nibble);
+  }
+  return board;
+}
