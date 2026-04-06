@@ -11,7 +11,8 @@
     "description": "Play the classic 2048 puzzle game fully on-chain on Base. Every move is a transaction. Compete on the leaderboard and earn KITTOIK token rewards.",
     "iconUrl": "https://base-2048-chain.vercel.app/icon.png",
     "homeUrl": "https://base-2048-chain.vercel.app",
-    "splashImageUrl": "https://base-2048-chain.vercel.app/splash.png",
+    "imageUrl": "https://base-2048-chain.vercel.app/cover.png",
+    "splashImageUrl": "https://base-2048-chain.vercel.app/profile.png",
     "splashBackgroundColor": "#0a0a0f",
     "heroImageUrl": "https://base-2048-chain.vercel.app/hero.png",
     "tagline": "2048 meets blockchain",
@@ -19,7 +20,7 @@
     "ogDescription": "Play 2048 fully on-chain on Base. Compete on leaderboards and earn KITTOIK token rewards.",
     "ogImageUrl": "https://base-2048-chain.vercel.app/hero.png",
     "screenshotUrls": [
-      "https://base-2048-chain.vercel.app/screenshot1.png"
+      "https://base-2048-chain.vercel.app/frame.png"
     ],
     "noindex": false,
     "primaryCategory": "games",
