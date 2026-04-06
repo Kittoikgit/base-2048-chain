@@ -22,6 +22,7 @@
       "https://base-2048-chain.vercel.app/screenshot1.png"
     ],
     "noindex": false,
-    "webhookUrl": ""
+    "primaryCategory": "games",
+    "tags": ["2048", "blockchain", "base", "onchain", "puzzle"]
   }
 }
