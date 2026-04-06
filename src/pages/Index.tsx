@@ -1,55 +1,110 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useAccount } from "wagmi";
 import { initGame, move, type Direction, type GameState } from "@/lib/game2048";
+import { useGameState, useGameActions, useLeaderboard } from "@/hooks/useGameContract";
 import GameBoard from "@/components/GameBoard";
 import GameHeader from "@/components/GameHeader";
 import Leaderboard from "@/components/Leaderboard";
 import RewardsClaim from "@/components/RewardsClaim";
+import { Loader2 } from "lucide-react";
 
 export default function Index() {
-  const [game, setGame] = useState<GameState>(initGame);
+  const { isConnected } = useAccount();
+  const { board: onChainBoard, score: onChainScore, isActive, refetch: refetchGame } = useGameState();
+  const { startGame, restartGame, makeMove: contractMove, endGame, claimReward, isPending, isConfirming } = useGameActions();
+  const { entries: leaderboardEntries, refetch: refetchLeaderboard, isLoading: lbLoading } = useLeaderboard();
+
+  // Local fallback game for non-connected users
+  const [localGame, setLocalGame] = useState<GameState>(initGame);
   const [bestScore, setBestScore] = useState(0);
+
+  // Refetch on-chain state after tx confirms
+  useEffect(() => {
+    if (!isPending && !isConfirming && isConnected) {
+      refetchGame();
+      refetchLeaderboard();
+    }
+  }, [isPending, isConfirming, isConnected, refetchGame, refetchLeaderboard]);
 
   const handleMove = useCallback(
     (dir: Direction) => {
-      setGame((prev) => {
-        if (prev.gameOver) return prev;
-        const next = move(prev, dir);
-        if (next.score > bestScore) setBestScore(next.score);
-        return next;
-      });
+      if (isConnected && isActive) {
+        contractMove(dir);
+      } else {
+        setLocalGame((prev) => {
+          if (prev.gameOver) return prev;
+          const next = move(prev, dir);
+          if (next.score > bestScore) setBestScore(next.score);
+          return next;
+        });
+      }
     },
-    [bestScore]
+    [isConnected, isActive, contractMove, bestScore]
   );
 
-  const handleRestart = () => setGame(initGame());
+  const handleRestart = () => {
+    if (isConnected) {
+      if (isActive) {
+        restartGame();
+      } else {
+        startGame();
+      }
+    } else {
+      setLocalGame(initGame());
+    }
+  };
+
+  // Determine display state
+  const displayBoard = isConnected && onChainBoard ? onChainBoard : localGame.board;
+  const displayScore = isConnected ? onChainScore : localGame.score;
+  const txBusy = isPending || isConfirming;
 
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1 container max-w-6xl mx-auto px-4 py-6 sm:py-10">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 items-start">
-          {/* Main game column */}
           <div className="space-y-5 max-w-md mx-auto lg:mx-0 lg:max-w-none w-full">
             <GameHeader
-              score={game.score}
+              score={displayScore}
               bestScore={bestScore}
               onRestart={handleRestart}
-              gameOver={game.gameOver}
-              won={game.won}
+              gameOver={!isActive && isConnected && onChainBoard !== null}
+              won={displayBoard.some((r) => r.some((v) => v >= 2048))}
             />
+
+            {txBusy && (
+              <div className="glass-card rounded-lg p-3 text-center animate-slide-up border border-primary/30 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  {isPending ? "Confirm in wallet..." : "Waiting for on-chain confirmation..."}
+                </span>
+              </div>
+            )}
+
             <GameBoard
-              board={game.board}
+              board={displayBoard}
               onMove={handleMove}
-              disabled={game.gameOver}
+              disabled={txBusy || (!isConnected && localGame.gameOver)}
             />
+
             <p className="text-xs text-center text-muted-foreground">
-              Use arrow keys or swipe to move tiles. Each move is an on-chain transaction.
+              {isConnected
+                ? isActive
+                  ? "Every swipe is an on-chain transaction on Base."
+                  : "Press Start / New Game to begin an on-chain session."
+                : "Connect wallet to play on-chain. Playing locally for now."}
             </p>
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-5 animate-slide-up">
-            <Leaderboard />
-            <RewardsClaim />
+            <Leaderboard entries={leaderboardEntries} isLoading={lbLoading} />
+            <RewardsClaim
+              onClaim={claimReward}
+              onEndGame={endGame}
+              isActive={isActive}
+              isConnected={isConnected}
+              isBusy={txBusy}
+            />
           </div>
         </div>
       </div>
