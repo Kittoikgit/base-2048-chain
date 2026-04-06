@@ -4,6 +4,12 @@ import { GAME_CONTRACT_ADDRESS, GAME_ABI, ERC20_BALANCE_ABI, DIRECTION_MAP, deco
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { Direction } from "@/lib/game2048";
+import { Attribution } from "ox/erc8021";
+
+// Base Builder Code attribution suffix for EOA transactions
+const DATA_SUFFIX = Attribution.toDataSuffix({
+  codes: ["bc_qy8hylsq"],
+});
 
 export function useLeaderboard() {
   const { data, refetch, isLoading } = useReadContract({
@@ -58,14 +64,12 @@ export function usePlayerHighScore() {
 }
 
 export function useRewardPoolBalance() {
-  // First get the reward token address
   const { data: tokenAddress } = useReadContract({
     address: GAME_CONTRACT_ADDRESS,
     abi: GAME_ABI,
     functionName: "rewardToken",
   });
 
-  // Then read the token balance of the game contract
   const { data: balance } = useReadContract({
     address: tokenAddress as `0x${string}` | undefined,
     abi: ERC20_BALANCE_ABI,
@@ -80,7 +84,7 @@ export function useRewardPoolBalance() {
 export function useGameActions() {
   const { address } = useAccount();
   const { writeContract, data: txHash, isPending, reset } = useWriteContract();
-  const [action, setAction] = useState<string>("");
+  const [action, setAction] = useState("");
 
   const { isSuccess, isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -97,6 +101,7 @@ export function useGameActions() {
     abi: GAME_ABI,
     chain: base,
     account: address,
+    dataSuffix: DATA_SUFFIX,
   } as const;
 
   const startGame = useCallback(() => {
