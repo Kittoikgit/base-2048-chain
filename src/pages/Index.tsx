@@ -13,6 +13,8 @@ export default function Index() {
   const { board: onChainBoard, score: onChainScore, isActive, refetch: refetchGame } = useGameState();
   const { startGame, restartGame, makeMove: contractMove, endGame, claimReward, isPending, isConfirming } = useGameActions();
   const { entries: leaderboardEntries, refetch: refetchLeaderboard, isLoading: lbLoading } = useLeaderboard();
+  const playerHighScore = usePlayerHighScore();
+  const poolBalance = useRewardPoolBalance();
 
   // Local fallback game for non-connected users
   const [localGame, setLocalGame] = useState<GameState>(initGame);
@@ -104,6 +106,8 @@ export default function Index() {
               isActive={isActive}
               isConnected={isConnected}
               isBusy={txBusy}
+              hasPlayed={playerHighScore > 0}
+              poolBalance={poolBalance}
             />
           </div>
         </div>
