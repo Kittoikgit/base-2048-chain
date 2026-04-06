@@ -20,6 +20,10 @@ export const GAME_ABI = [
   { inputs: [], name: "totalGamesPlayed", outputs: [{ internalType: "uint256", name: "", type: "uint256" }], stateMutability: "view", type: "function" },
 ] as const satisfies Abi;
 
+export const ERC20_BALANCE_ABI = [
+  { inputs: [{ internalType: "address", name: "account", type: "address" }], name: "balanceOf", outputs: [{ internalType: "uint256", name: "", type: "uint256" }], stateMutability: "view", type: "function" },
+] as const satisfies Abi;
+
 // Direction mapping: contract uses uint8 (0=up, 1=down, 2=left, 3=right)
 export const DIRECTION_MAP: Record<string, number> = {
   up: 0,

@@ -1,6 +1,6 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
 import { base } from "wagmi/chains";
-import { GAME_CONTRACT_ADDRESS, GAME_ABI, DIRECTION_MAP, decodeBoardFromUint256 } from "@/lib/contract";
+import { GAME_CONTRACT_ADDRESS, GAME_ABI, ERC20_BALANCE_ABI, DIRECTION_MAP, decodeBoardFromUint256 } from "@/lib/contract";
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { Direction } from "@/lib/game2048";
@@ -41,6 +41,40 @@ export function useGameState() {
   const isActive = data ? (data[2] as boolean) : false;
 
   return { board, score, isActive, refetch, isLoading };
+}
+
+export function usePlayerHighScore() {
+  const { address } = useAccount();
+
+  const { data } = useReadContract({
+    address: GAME_CONTRACT_ADDRESS,
+    abi: GAME_ABI,
+    functionName: "highScores",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+
+  return Number(data ?? 0n);
+}
+
+export function useRewardPoolBalance() {
+  // First get the reward token address
+  const { data: tokenAddress } = useReadContract({
+    address: GAME_CONTRACT_ADDRESS,
+    abi: GAME_ABI,
+    functionName: "rewardToken",
+  });
+
+  // Then read the token balance of the game contract
+  const { data: balance } = useReadContract({
+    address: tokenAddress as `0x${string}` | undefined,
+    abi: ERC20_BALANCE_ABI,
+    functionName: "balanceOf",
+    args: [GAME_CONTRACT_ADDRESS],
+    query: { enabled: !!tokenAddress },
+  });
+
+  return Number(balance ?? 0n);
 }
 
 export function useGameActions() {
