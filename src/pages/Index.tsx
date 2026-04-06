@@ -7,6 +7,7 @@ import GameHeader from "@/components/GameHeader";
 import Leaderboard from "@/components/Leaderboard";
 import RewardsClaim from "@/components/RewardsClaim";
 import { Loader2 } from "lucide-react";
+import { useSessionKey } from "@/hooks/useSessionKey";
 
 export default function Index() {
   const { isConnected } = useAccount();
