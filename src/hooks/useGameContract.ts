@@ -80,11 +80,11 @@ export function useRewardPoolBalance() {
 
   return Number(balance ?? 0n);
 }
+
 export function useGameActions() {
   const { address } = useAccount();
   const { writeContract, data: txHash, isPending, reset } = useWriteContract();
   const [action, setAction] = useState("");
-  const [txError, setTxError] = useState(false);
 
   const { isSuccess, isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -92,7 +92,6 @@ export function useGameActions() {
     if (isSuccess && action) {
       toast.success(`${action} confirmed on-chain!`);
       setAction("");
-      setTxError(false);
       reset();
     }
   }, [isSuccess, action, reset]);
@@ -102,19 +101,18 @@ export function useGameActions() {
     abi: GAME_ABI,
     chain: base,
     account: address,
+    dataSuffix: DATA_SUFFIX,
   } as const;
 
   const startGame = useCallback(() => {
     if (!address) return;
     setAction("Start Game");
-    setTxError(false);
     writeContract({ ...baseArgs, account: address, functionName: "startGame" });
   }, [writeContract, address]);
 
   const restartGame = useCallback(() => {
     if (!address) return;
     setAction("Restart Game");
-    setTxError(false);
     writeContract({ ...baseArgs, account: address, functionName: "restartGame" });
   }, [writeContract, address]);
 
@@ -122,16 +120,7 @@ export function useGameActions() {
     (dir: Direction) => {
       if (!address) return;
       setAction("Move");
-      setTxError(false);
-      writeContract(
-        { ...baseArgs, account: address, functionName: "makeMove", args: [DIRECTION_MAP[dir]] },
-        {
-          onError: (err) => {
-            toast.error("Move failed — rolling back");
-            setTxError(true);
-          },
-        }
-      );
+      writeContract({ ...baseArgs, account: address, functionName: "makeMove", args: [DIRECTION_MAP[dir]] });
     },
     [writeContract, address]
   );
@@ -139,14 +128,12 @@ export function useGameActions() {
   const endGame = useCallback(() => {
     if (!address) return;
     setAction("End Game");
-    setTxError(false);
     writeContract({ ...baseArgs, account: address, functionName: "endGame" });
   }, [writeContract, address]);
 
   const claimReward = useCallback(() => {
     if (!address) return;
     setAction("Claim Reward");
-    setTxError(false);
     writeContract({ ...baseArgs, account: address, functionName: "claimReward" });
   }, [writeContract, address]);
 
@@ -159,6 +146,5 @@ export function useGameActions() {
     isPending,
     isConfirming,
     txHash,
-    txError,        // <-- НОВЕ
   };
 }

@@ -52,7 +52,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
-    "ox": "^0.11.3",
+    "ox": "^0.14.10",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -66,8 +66,7 @@
     "vaul": "^0.9.9",
     "viem": "^2.47.10",
     "wagmi": "^3.6.0",
-    "zod": "^3.25.76",
-    "permissionless": "^0.3.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

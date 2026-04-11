@@ -7,41 +7,20 @@ import GameHeader from "@/components/GameHeader";
 import Leaderboard from "@/components/Leaderboard";
 import RewardsClaim from "@/components/RewardsClaim";
 import { Loader2 } from "lucide-react";
-import { useSessionKey } from "@/hooks/useSessionKey";
-import { toast } from "sonner";
 
 export default function Index() {
   const { isConnected } = useAccount();
-
   const { board: onChainBoard, score: onChainScore, isActive, refetch: refetchGame } = useGameState();
-  const {
-    startGame,
-    restartGame,
-    makeMove: contractMove,
-    endGame,
-    claimReward,
-    isPending,
-    isConfirming,
-    txError,
-  } = useGameActions();
-
+  const { startGame, restartGame, makeMove: contractMove, endGame, claimReward, isPending, isConfirming } = useGameActions();
   const { entries: leaderboardEntries, refetch: refetchLeaderboard, isLoading: lbLoading } = useLeaderboard();
   const playerHighScore = usePlayerHighScore();
   const poolBalance = useRewardPoolBalance();
 
-  // Session key hook
-  const { isActive: hasSessionKey, isActivating, activate: activateSession, moveWithSession, deactivate: deactivateSession } = useSessionKey();
-
   // Local fallback game for non-connected users
-  const [localGame, setLocalGame] = useState<GameState>(initGame());
-
+  const [localGame, setLocalGame] = useState<GameState>(initGame);
   const [bestScore, setBestScore] = useState(0);
 
-  // Optimistic state for connected users
-  const [optimisticGame, setOptimisticGame] = useState<GameState | null>(null);
-  const [pendingMoves, setPendingMoves] = useState(0);
-
-  // Refetch on-chain state after transaction
+  // Refetch on-chain state after tx confirms
   useEffect(() => {
     if (!isPending && !isConfirming && isConnected) {
       refetchGame();
@@ -49,65 +28,11 @@ export default function Index() {
     }
   }, [isPending, isConfirming, isConnected, refetchGame, refetchLeaderboard]);
 
-  // Sync optimistic state when on-chain updates
-  useEffect(() => {
-    if (onChainBoard && !isPending && !isConfirming) {
-      setOptimisticGame(null);
-      setPendingMoves(0);
-    }
-  }, [onChainBoard, onChainScore, isPending, isConfirming]);
-
-  // Rollback on error
-  useEffect(() => {
-    if (txError) {
-      setOptimisticGame(null);
-      setPendingMoves(0);
-      refetchGame();
-    }
-  }, [txError, refetchGame]);
-
-  // Main move handler – works with AND without session key
   const handleMove = useCallback(
-    async (dir: Direction) => {
+    (dir: Direction) => {
       if (isConnected && isActive) {
-        const currentBoard = optimisticGame?.board ?? onChainBoard;
-        const currentScore = optimisticGame?.score ?? onChainScore;
-
-        if (!currentBoard) return;
-
-        const currentState: GameState = {
-          board: currentBoard,
-          score: currentScore,
-          gameOver: false,
-          won: false,
-        };
-
-        const nextState = move(currentState, dir);
-
-        // Only proceed if the board actually changed
-        if (JSON.stringify(nextState.board) !== JSON.stringify(currentState.board)) {
-          // Optimistic update
-          setOptimisticGame(nextState);
-          setPendingMoves((prev) => prev + 1);
-
-          try {
-            if (hasSessionKey) {
-              // No wallet popup – session key move
-              await moveWithSession(dir);
-            } else {
-              // Normal on-chain move (shows MetaMask)
-              contractMove(dir);
-            }
-          } catch (error) {
-            console.error("Move failed:", error);
-            toast.error("Move failed");
-            // Rollback optimistic state
-            setOptimisticGame(null);
-            setPendingMoves(0);
-          }
-        }
+        contractMove(dir);
       } else {
-        // Offline / local game
         setLocalGame((prev) => {
           if (prev.gameOver) return prev;
           const next = move(prev, dir);
@@ -116,23 +41,10 @@ export default function Index() {
         });
       }
     },
-    [
-      isConnected,
-      isActive,
-      hasSessionKey,
-      optimisticGame,
-      onChainBoard,
-      onChainScore,
-      contractMove,
-      moveWithSession,
-      bestScore,
-    ]
+    [isConnected, isActive, contractMove, bestScore]
   );
 
   const handleRestart = () => {
-    setOptimisticGame(null);
-    setPendingMoves(0);
-
     if (isConnected) {
       if (isActive) {
         restartGame();
@@ -144,89 +56,66 @@ export default function Index() {
     }
   };
 
-  // Display logic: optimistic → on-chain → local
-  const displayBoard = isConnected
-    ? (optimisticGame?.board ?? onChainBoard ?? localGame.board)
-    : localGame.board;
-
-  const displayScore = isConnected
-    ? (optimisticGame?.score ?? onChainScore ?? 0)
-    : localGame.score;
-
+  // Determine display state
+  const displayBoard = isConnected && onChainBoard ? onChainBoard : localGame.board;
+  const displayScore = isConnected ? onChainScore : localGame.score;
   const txBusy = isPending || isConfirming;
 
   return (
-    <div className="w-full max-w-md mx-auto px-2 pt-2 pb-8 flex flex-col gap-3">
-      <GameHeader
-        score={displayScore}
-        bestScore={isConnected ? playerHighScore : bestScore}
-        onRestart={handleRestart}
-        isConnected={isConnected}
-        isActive={isActive}
-        won={displayBoard?.flat().some((v) => v >= 2048)}
-      />
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 container max-w-6xl mx-auto px-4 py-6 sm:py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 items-start">
+          <div className="space-y-5 max-w-md mx-auto lg:mx-0 lg:max-w-none w-full">
+            <GameHeader
+              score={displayScore}
+              bestScore={bestScore}
+              onRestart={handleRestart}
+              gameOver={!isActive && isConnected && onChainBoard !== null}
+              won={displayBoard.some((r) => r.some((v) => v >= 2048))}
+            />
 
-      <GameBoard
-        board={displayBoard}
-        onMove={handleMove}
-        disabled={txBusy && pendingMoves === 0}
-      />
+            {txBusy && (
+              <div className="glass-card rounded-lg p-3 text-center animate-slide-up border border-primary/30 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  {isPending ? "Confirm in wallet..." : "Waiting for on-chain confirmation..."}
+                </span>
+              </div>
+            )}
 
-      {/* Pending moves indicator */}
-      {pendingMoves > 0 && (
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground animate-pulse">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          {pendingMoves} move{pendingMoves > 1 ? "s" : ""} confirming on-chain...
+            <GameBoard
+              board={displayBoard}
+              onMove={handleMove}
+              disabled={txBusy || (!isConnected && localGame.gameOver)}
+            />
+
+            <p className="text-xs text-center text-muted-foreground">
+              {isConnected
+                ? isActive
+                  ? "Every swipe is an on-chain transaction on Base."
+                  : "Press Start / New Game to begin an on-chain session."
+                : "Connect wallet to play on-chain. Playing locally for now."}
+            </p>
+          </div>
+
+          <div className="space-y-5 animate-slide-up">
+            <Leaderboard entries={leaderboardEntries} isLoading={lbLoading} />
+            <RewardsClaim
+              onClaim={claimReward}
+              onEndGame={endGame}
+              isActive={isActive}
+              isConnected={isConnected}
+              isBusy={txBusy}
+              hasPlayed={playerHighScore > 0}
+              poolBalance={poolBalance}
+            />
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Transaction status */}
-      {txBusy && pendingMoves === 0 && (
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          {isPending ? "Confirm in wallet..." : "Waiting for on-chain confirmation..."}
-        </div>
-      )}
-
-      {/* Session Key Button */}
-      {isConnected && isActive && (
-        <div className="flex justify-center">
-          {!hasSessionKey ? (
-            <button
-              onClick={activateSession}
-              disabled={isActivating}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
-            >
-              {isActivating ? "Activating..." : "⚡ Enable Auto-Sign (1 hour)"}
-            </button>
-          ) : (
-            <button
-              onClick={deactivateSession}
-              className="px-4 py-2 rounded-lg bg-muted text-muted-foreground text-sm font-medium hover:opacity-90 transition-colors"
-            >
-              🔒 Disable Auto-Sign
-            </button>
-          )}
-        </div>
-      )}
-
-      <p className="text-center text-xs text-muted-foreground">
-        {isConnected
-          ? isActive
-            ? "Every swipe is an on-chain transaction on Base."
-            : "Press Start / New Game to begin an on-chain session."
-          : "Connect wallet to play on-chain. Playing locally for now."}
-      </p>
-
-      <Leaderboard entries={leaderboardEntries} isLoading={lbLoading} />
-
-      <RewardsClaim
-        onClaim={claimReward}
-        onEnd={endGame}
-        isActive={isActive}
-        hasHighScore={playerHighScore > 0}
-        poolBalance={poolBalance}
-      />
+      <footer className="text-center py-4 text-[10px] text-muted-foreground tracking-wide">
+        Built on Base · Every move on-chain · Season 1
+      </footer>
     </div>
   );
 }
